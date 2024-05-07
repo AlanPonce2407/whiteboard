@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import Draggable, { DraggableData, DraggableEvent } from 'react-draggable';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface TextBox {
   id: string;
   text: string;
   position: { x: number; y: number };
+  size: { width: number; height: number };
 }
 
 const A4_WIDTH = 816;
@@ -14,131 +14,102 @@ const A4_HEIGHT = 1056;
 
 const Whiteboard: React.FC = () => {
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
-  const [newText, setNewText] = useState<string>('');
+  const [dragging, setDragging] = useState<boolean>(false);
+  const [startPosition, setStartPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [currentPosition, setCurrentPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [selectedTextBox, setSelectedTextBox] = useState<TextBox | null>(null);
-  const [editingText, setEditingText] = useState<string>('');
 
-  const [isTextToolActive, setIsTextToolActive] = useState<boolean>(false);
-  const [startX, setStartX] = useState<number | null>(null);
-  const [startY, setStartY] = useState<number | null>(null);
-  const [currentX, setCurrentX] = useState<number | null>(null);
-  const [currentY, setCurrentY] = useState<number | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const editableRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const canvasRect = canvasRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.editable')) {
+        Object.values(editableRefs.current).forEach((ref) => {
+          if (ref) {
+            ref.blur();
+          }
+        });
+      }
+    };
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewText(e.target.value);
-  };
+    document.addEventListener('click', handleClick);
+    return () => {
+      document.removeEventListener('click', handleClick);
+    };
+  }, []);
 
-  const addTextBox = () => {
-    if (newText.trim()) {
-      setTextBoxes([...textBoxes, { id: crypto.randomUUID(), text: newText, position: { x: 0, y: 0 } }]);
-      setNewText('');
+  useEffect(() => {
+    if (selectedTextBox && editableRefs.current[selectedTextBox.id]) {
+      editableRefs.current[selectedTextBox.id]?.focus();
     }
-  };
-
-  const updatePosition = (index: number, position: { x: number; y: number }) => {
-    const updatedTextBoxes = [...textBoxes];
-    updatedTextBoxes[index].position = position;
-    setTextBoxes(updatedTextBoxes);
-  };
-
-  const handleDrag = (e: DraggableEvent, data: DraggableData, index: number) => {
-    updatePosition(index, { x: data.x, y: data.y });
-  };
-
-  const deleteTextBox = (id: string) => {
-    setTextBoxes(textBoxes.filter((textBox) => textBox.id !== id));
-    setSelectedTextBox(null);
-    setEditingText('');
-  };
-
-  const handleTextBoxClick = (e: React.MouseEvent, textBox: TextBox) => {
-    e.stopPropagation();
-    setSelectedTextBox(textBox);
-    setEditingText(textBox.text);
-  };
-
-  const handleTextEdit = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditingText(e.target.value);
-  };
-
-  const handleTextBoxBlur = () => {
-    if (selectedTextBox) {
-      const updatedTextBoxes = textBoxes.map((textBox) =>
-        textBox.id === selectedTextBox.id ? { ...textBox, text: editingText } : textBox
-      );
-      setTextBoxes(updatedTextBoxes);
-      setSelectedTextBox(null);
-    }
-  };
+  }, [selectedTextBox]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isTextToolActive) {
-      setStartX(e.clientX - canvasRect.left);
-      setStartY(e.clientY - canvasRect.top);
-    }
+    const canvasRect = canvasRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
+    setStartPosition({ x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top });
+    setCurrentPosition({ x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top });
+    setDragging(true);
+    setSelectedTextBox(null); // Reset selectedTextBox on mouse down
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isTextToolActive && startX !== null && startY !== null) {
-      setCurrentX(e.clientX - canvasRect.left);
-      setCurrentY(e.clientY - canvasRect.top);
+    if (dragging) {
+      const canvasRect = canvasRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
+      setCurrentPosition({ x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top });
     }
   };
 
   const handleMouseUp = () => {
-    if (isTextToolActive && startX !== null && startY !== null && currentX !== null && currentY !== null) {
-      if (startX !== currentX || startY !== currentY) {
+    if (dragging) {
+      setDragging(false);
+      const width = Math.abs(currentPosition.x - startPosition.x);
+      const height = Math.abs(currentPosition.y - startPosition.y);
+      if (width > 10 && height > 10) {
         const newTextBox: TextBox = {
-          id: crypto.randomUUID(),
+          id: String(Math.random()),
           text: '',
-          position: { x: startX, y: startY },
+          position: {
+            x: Math.min(startPosition.x, currentPosition.x),
+            y: Math.min(startPosition.y, currentPosition.y),
+          },
+          size: { width, height },
         };
-
-        setTextBoxes([...textBoxes, newTextBox]);
+        setTextBoxes((prevTextBoxes) => {
+          const updatedTextBoxes = [...prevTextBoxes, newTextBox];
+          setSelectedTextBox(newTextBox); // Set the new text box as selected
+          return updatedTextBoxes;
+        });
       }
+    }
+  };
 
-      setStartX(null);
-      setStartY(null);
-      setCurrentX(null);
-      setCurrentY(null);
+  const handleTextChange = (id: string, newText: string) => {
+    setTextBoxes((prevTextBoxes) =>
+      prevTextBoxes.map((textBox) => (textBox.id === id ? { ...textBox, text: newText } : textBox))
+    );
+  };
+
+  const deleteTextBox = (id: string) => {
+    setTextBoxes((prevTextBoxes) => prevTextBoxes.filter((textBox) => textBox.id !== id));
+    setSelectedTextBox(null); // Reset selectedTextBox when deleting
+  };
+
+  const handleFocus = (id: string, ref: HTMLDivElement | null) => {
+    editableRefs.current[id] = ref;
+    if (ref) {
+      const range = document.createRange();
+      range.selectNodeContents(ref);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     }
   };
 
   return (
     <div className="w-screen h-screen bg-gray-100 flex flex-col items-center p-4">
-      <div className="mb-4">
-        <input
-          type="text"
-          value={newText}
-          onChange={handleTextChange}
-          placeholder="Enter text"
-          className="px-3 py-2 border border-gray-300 rounded mr-2 text-black"
-        />
-        <button onClick={addTextBox} className="px-4 py-2 bg-blue-500 text-white rounded">
-          Add Text Box
-        </button>
-        <button
-          onClick={() => setIsTextToolActive(!isTextToolActive)}
-          className="px-4 py-2 bg-blue-500 text-white rounded ml-2"
-        >
-          {isTextToolActive ? 'Exit Text Tool' : 'Activate Text Tool'}
-        </button>
-        {selectedTextBox && (
-          <div className="mt-2">
-            <input
-              type="text"
-              value={editingText}
-              onChange={handleTextEdit}
-              onBlur={handleTextBoxBlur}
-              placeholder="Edit text"
-              className="px-3 py-2 border border-gray-300 rounded mr-2 text-black"
-            />
-          </div>
-        )}
-      </div>
       <div className="relative overflow-hidden">
         <div
           className="flex items-center justify-center bg-white"
@@ -148,35 +119,40 @@ const Whiteboard: React.FC = () => {
           onMouseUp={handleMouseUp}
           ref={canvasRef}
         >
-          {textBoxes.map((textBox, index) => (
-            <Draggable
+          {textBoxes.map((textBox) => (
+            <div
               key={textBox.id}
-              position={textBox.position}
-              onDrag={(e, data) => handleDrag(e, data, index)}
-              bounds="parent"
+              className="absolute"
+              style={{
+                left: textBox.position.x,
+                top: textBox.position.y,
+                width: textBox.size.width,
+                height: textBox.size.height,
+              }}
             >
               <div
-                className="absolute bg-white p-2 rounded shadow-md cursor-move text-black whitespace-pre-wrap flex items-center"
-                onClick={(e) => handleTextBoxClick(e, textBox)}
+                contentEditable
+                suppressContentEditableWarning
+                className="editable p-2 rounded cursor-text bg-white"
+                style={{ width: '100%', height: '100%', outline: 'none', border: 'none', color: 'black', direction: 'ltr' }}
+                onInput={(e) => handleTextChange(textBox.id, e.currentTarget.textContent || '')}
+                onFocus={(e) => handleFocus(textBox.id, e.currentTarget)}
+                ref={(ref) => handleFocus(textBox.id, ref)}
               >
                 {textBox.text}
-                <button
-                  className="ml-2 text-red-500 hover:text-red-700"
-                  onClick={() => deleteTextBox(textBox.id)}
-                >
-                  &times;
-                </button>
               </div>
-            </Draggable>
+            </div>
           ))}
-          {isTextToolActive && startX !== null && startY !== null && currentX !== null && currentY !== null && (
+          {dragging && (
             <div
-              className="absolute border-2 border-dotted border-gray-500"
+              className="absolute"
               style={{
-                left: Math.min(startX, currentX),
-                top: Math.min(startY, currentY),
-                width: Math.abs(currentX - startX),
-                height: Math.abs(currentY - startY),
+                left: Math.min(startPosition.x, currentPosition.x),
+                top: Math.min(startPosition.y, currentPosition.y),
+                width: Math.abs(currentPosition.x - startPosition.x),
+                height: Math.abs(currentPosition.y - startPosition.y),
+                border: '2px dashed #333',
+                pointerEvents: 'none',
               }}
             />
           )}
