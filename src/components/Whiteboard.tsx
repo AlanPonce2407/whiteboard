@@ -163,3 +163,5 @@ const Whiteboard: React.FC = () => {
 };
 
 export default Whiteboard;
+
+// TODO: fix the issue with the textfield not being automatically focused after being created
