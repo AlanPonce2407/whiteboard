@@ -56,13 +56,13 @@ const Whiteboard: React.FC = () => {
         deselectTextBox();
       }
     };
-  
+
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-  
+
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvasRect = canvasRef.current?.getBoundingClientRect() || { left: 0, top: 0 };
@@ -73,7 +73,7 @@ const Whiteboard: React.FC = () => {
         e.clientY >= canvasRect.top + textBox.position.y &&
         e.clientY <= canvasRect.top + textBox.position.y + textBox.size.height
     );
-  
+
     if (clickedTextBox) {
       setSelectedTextBoxId(clickedTextBox.id);
       setDraggedTextBoxId(clickedTextBox); // Store the id of the dragged text box
@@ -98,9 +98,9 @@ const Whiteboard: React.FC = () => {
         prevTextBoxes.map((textBox) =>
           textBox.id === draggedTextBoxId.id // Update the comparison to check the 'id' property
             ? {
-                ...textBox,
-                position: { x: offsetX, y: offsetY },
-              }
+              ...textBox,
+              position: { x: offsetX, y: offsetY },
+            }
             : textBox
         )
       );
@@ -122,31 +122,31 @@ const Whiteboard: React.FC = () => {
     }, 0);
   }
 
-const handleMouseUp = () => {
-  if (dragging) {
-    setDragging(false);
-    const width = Math.abs(currentPosition.x - startPosition.x);
-    const height = Math.abs(currentPosition.y - startPosition.y);
-    if (width > 10 && height > 10) {
-      const newTextBox: TextBox = {
-        id: String(Math.random()),
-        text: '',
-        position: {
-          x: Math.min(startPosition.x, currentPosition.x),
-          y: Math.min(startPosition.y, currentPosition.y),
-        },
-        size: { width, height },
-      };
-      setTextBoxes((prevTextBoxes) => {
-        const updatedTextBoxes = [...prevTextBoxes, newTextBox];
-        setSelectedTextBoxId(newTextBox.id); // Set the new text box as selected
-        focusNewTextBox(newTextBox.id); // Focus the new text box
-        return updatedTextBoxes;
-      });
+  const handleMouseUp = () => {
+    if (dragging) {
+      setDragging(false);
+      const width = Math.abs(currentPosition.x - startPosition.x);
+      const height = Math.abs(currentPosition.y - startPosition.y);
+      if (width > 10 && height > 10) {
+        const newTextBox: TextBox = {
+          id: String(Math.random()),
+          text: '',
+          position: {
+            x: Math.min(startPosition.x, currentPosition.x),
+            y: Math.min(startPosition.y, currentPosition.y),
+          },
+          size: { width, height },
+        };
+        setTextBoxes((prevTextBoxes) => {
+          const updatedTextBoxes = [...prevTextBoxes, newTextBox];
+          setSelectedTextBoxId(newTextBox.id); // Set the new text box as selected
+          focusNewTextBox(newTextBox.id); // Focus the new text box
+          return updatedTextBoxes;
+        });
+      }
     }
-  }
-  setDraggedTextBoxId(null); // Reset draggedTextBoxId on mouse up
-};
+    setDraggedTextBoxId(null); // Reset draggedTextBoxId on mouse up
+  };
 
   const handleTextChange = (id: string, newText: string) => {
     setTextBoxes((prevTextBoxes) =>
@@ -195,7 +195,7 @@ const handleMouseUp = () => {
           {textBoxes.map((textBox) => (
             <div
               key={textBox.id}
-              className="absolute"
+              className="absolute flex"
               style={{
                 left: textBox.position.x,
                 top: textBox.position.y,
@@ -207,15 +207,41 @@ const handleMouseUp = () => {
               <div
                 contentEditable
                 suppressContentEditableWarning
-                className={`editable p-2 rounded cursor-text bg-white ${textBox.id === selectedTextBoxId ? 'border-2 border-blue-500' : ''
+                className={`editable p-2 rounded cursor-text bg-transparent ${textBox.id === selectedTextBoxId ? 'border-2 border-blue-500' : ''
                   }`}
-                style={{ width: '100%', height: '100%', outline: 'none', color: 'black', direction: 'ltr' }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  outline: 'none',
+                  color: 'black',
+                  direction: 'ltr'
+                }}
                 onInput={(e) => handleTextChange(textBox.id, e.currentTarget.textContent || '')}
                 onFocus={(e) => handleFocus(textBox.id, e.currentTarget)}
                 ref={(ref) => handleFocus(textBox.id, ref)}
               >
                 {textBox.text}
               </div>
+              {textBox.id === selectedTextBoxId && (
+              <button
+                className='delete-button bg-red-500 text-white rounded-full w-6 h-6 ml-2 flex items-center justify-center'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteTextBox(textBox.id);
+                }}
+              >
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  viewBox='0 0 20 20'
+                  fill='currentColor'
+                  className='w-4 h4'>
+                <path
+                  fillRule='evenodd'
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd" />
+                  </svg>
+              </button>
+              )}
             </div>
           ))}
           {dragging && (
